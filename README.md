@@ -10,4 +10,4 @@ In order to use the code all you need is to turn your playlist to an XML file by
 last thing you got to do is to replace the file inside the call to mainfunc to your playlists file name and run it!
 
 # Notice!
-All extra reqiurments beside the imports at the top are Youtube-DL requirements, you mihgt have to install FFmpeg.
+All extra reqiurments beside the imports at the top are Youtube-DL requirements, you might have to install FFmpeg.
