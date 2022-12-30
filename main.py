@@ -1,3 +1,4 @@
+# _*_ coding:utf-8 _*_
 import os
 import os.path
 import eyed3
@@ -26,7 +27,7 @@ def shellquote(s):
 def parser(path):
     names = []  # list of song names
 
-    with open(path, 'r') as f:
+    with open(path, 'r',encoding='UTF-8') as f:
         song = ''
         artist = ''
         playlist = ''
@@ -53,18 +54,19 @@ def download_audio(url, playlist, name):
         'extractaudio': True,
         'audioformat': "mp3",
         'outtmpl': f'{playlist[1:-1]}/{name[0]}.',
-        'postprocessors': [{
-            'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'mp3',
-            'preferredquality': '192',
+        # 'postprocessors': [{
+        #     'key': 'FFmpegExtractAudio',
+        #     'preferredcodec': 'mp3',
+        #     'preferredquality': '192',
 
-        }]
+        # }]
     }
     with youtube_dl.YoutubeDL(ydl_opts) as ydl:
         try:
             ydl.download([url])
         except:
             download_audio(url, playlist, name)
+    
 
 
 def search(song):
@@ -80,8 +82,7 @@ def init(playlist):
         playlist = playlist[1:-1]
         os.mkdir(playlist)
     except FileExistsError:
-        print("A folder with that playlist name already exists\n please enter a new name:\n")
-        playlist = str(input())
+        playlist = str(input("A folder with that playlist name already exists\n please enter a new name:"))
         init(shellquote(playlist))
     return str(playlist)
 
@@ -103,4 +104,4 @@ def mainfunc(PATH):
         metadata(rf"{playlist}/{name[0]}.mp3", f"{name[0]}", name[1], albumname)
 
 
-mainfunc("your_playlist.xml")  # your playlist's xml file
+mainfunc("Terraria.xml")  # your playlist's xml file
