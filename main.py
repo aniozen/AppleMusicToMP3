@@ -48,11 +48,12 @@ def parser(path):
 
 
 def download_audio(url, playlist, name):
+
     ydl_opts = {
         'format': 'bestaudio/best',
         'extractaudio': True,
         'audioformat': "mp3",
-        'outtmpl': f'{playlist[1:-1]}/{name[0]}.',
+        'outtmpl': f'{playlist[1:-1]}/{name[0].replace("/","_")}.',
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3',
@@ -85,7 +86,7 @@ def init(playlist):
     return str(playlist)
 
 
-def mainfunc(PATH):
+def main(PATH):
     names, playlist = parser(f'{PATH}')
     playlist = shellquote(playlist)
     playlist = init(playlist)
@@ -99,7 +100,9 @@ def mainfunc(PATH):
     print(links)
     albumname = f"{playlist} - {date.today()}"
     for name in names:
-        metadata(rf"{playlist}/{name[0]}.mp3", f"{name[0]}", name[1], albumname)
+        metadata(rf"{playlist}/{name[0].replace('/','_')}.mp3", f"{name[0]}", name[1], albumname)
+
+if __name__ == '__main__':
+    main(r'your_playlist.xml') # your playlist's xml file
 
 
-mainfunc("Aphex Twin - Richard D. James Album.xml")  # your playlist's xml file
