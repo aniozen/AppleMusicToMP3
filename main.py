@@ -1,12 +1,20 @@
 import os
-import os.path
 import eyed3
 import urllib.request
 import urllib
 import re
 from datetime import date
-import youtube_dl
+import yt_dlp as youtube_dl
 import concurrent.futures
+import xml.etree.ElementTree as ET
+
+
+def sanitize_filename(filename):
+    """
+    Sanitize the filename by replacing invalid characters and truncating if necessary.
+    """
+    sanitized = re.sub(r'[\\/*?:"<>|\']', "", filename)
+    return sanitized[:130]  # Truncate to 130 characters, which is a typical limit for many filesystems.
 
 
 def metadata(path, title, artist, album):
@@ -19,53 +27,42 @@ def metadata(path, title, artist, album):
     audiofile.tag.save()
 
 
-def shellquote(s):
-    return "'" + s.replace("'", "'\\''") + "'"
-
-
 def parser(path):
-    names = []  # list of song names
+    tree = ET.parse(path)
+    root = tree.getroot()
+    songs = []
 
-    with open(path, 'r') as f:
-        song = ''
-        artist = ''
-        playlist = ''
-        playlist_flag = 0
-        for line in f:
-            if '<key>Name</key><string>' in line and not playlist_flag:
-                song = line.strip().replace('<key>Name</key><string>', '').replace('</string>', '').replace('&#38;',
-                                                                                                            '&')
-            elif '<key>Artist</key><string>' in line:
-                artist = line.strip().replace('<key>Artist</key><string>', '').replace('</string>', '').replace('&#38;',
-                                                                                                                '&')
-                names.append((song, artist))  # artist always comes after name so if artist is found append to list
-            elif '<key>Playlists</key>' in line:
-                playlist_flag = 1
-            elif '<key>Name</key><string>' in line and playlist_flag:
-                playlist = line.strip().replace('<key>Name</key><string>', '').replace('</string>', '').replace('&#38;',
-                                                                                                                '&')
-                return names, playlist
+    for dict_tag in root.findall('.//dict/dict/dict'):
+        song = artist = album = None
+        for i, child in enumerate(dict_tag):
+            if child.tag == 'key' and child.text == 'Name':
+                song = dict_tag[i + 1].text
+            elif child.tag == 'key' and child.text == 'Artist':
+                artist = dict_tag[i + 1].text
+            elif child.tag == 'key' and child.text == 'Album':
+                album = dict_tag[i + 1].text
+
+        if song and artist and album:
+            songs.append((sanitize_filename(song), sanitize_filename(artist), sanitize_filename(album)))
+
+    return songs
 
 
-def download_audio(url, playlist, name):
-
+def download_audio(url, artist, album, name):
     ydl_opts = {
         'format': 'bestaudio/best',
-        'extractaudio': True,
-        'audioformat': "mp3",
-        'outtmpl': f'{playlist[1:-1]}/{name[0].replace("/","_")}.',
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3',
             'preferredquality': '192',
-
-            }]
+        }],
+        'outtmpl': f'{artist}/{album}/{name[0].replace("/", "_")}.%(ext)s',
     }
     with youtube_dl.YoutubeDL(ydl_opts) as ydl:
         try:
             ydl.download([url])
         except:
-            download_audio(url, playlist, name)
+            download_audio(url, artist, album, name)
 
 
 def search(song):
@@ -76,33 +73,37 @@ def search(song):
     return "https://www.youtube.com/watch?v=" + video_ids[0]
 
 
-def init(playlist):
+def init(directory):
     try:
-        playlist = playlist[1:-1]
-        os.mkdir(playlist)
+        os.makedirs(directory, exist_ok=True)
     except FileExistsError:
-        playlist = str(input("A folder with that playlist name already exists\n please enter a new name:"))
-        init(shellquote(playlist))
-    return str(playlist)
+        directory = str(input(f"A folder with the name {directory} already exists\n please enter a new name:"))
+        init(sanitize_filename(directory))
+    return str(directory)
 
 
 def main(PATH):
-    names, playlist = parser(f'{PATH}')
-    playlist = shellquote(playlist)
-    playlist = init(playlist)
-    print(names)
+    songs = parser(PATH)
+
+    for song in songs:
+        artist_dir = sanitize_filename(song[1])
+        album_dir = sanitize_filename(song[2])
+        full_dir = os.path.join(artist_dir, album_dir)
+        init(full_dir)
+
+    print(songs)
     links = []
-    with concurrent.futures.ThreadPoolExecutor(max_workers=len(names)) as executor:
-        for song in names:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(songs)) as executor:
+        for song in songs:
             link = search(song)
             links.append(link)
-            executor.submit(download_audio, str(link), shellquote(playlist), song)
+            executor.submit(download_audio, str(link), sanitize_filename(song[1]), sanitize_filename(song[2]), song)
+
     print(links)
-    albumname = f"{playlist} - {date.today()}"
-    for name in names:
-        metadata(rf"{playlist}/{name[0].replace('/','_')}.mp3", f"{name[0]}", name[1], albumname)
+    for song in songs:
+        metadata(rf"{sanitize_filename(song[1])}/{sanitize_filename(song[2])}/{song[0].replace('/', '_')}.mp3", song[0],
+                 song[1], song[2])
+
 
 if __name__ == '__main__':
-    main(r'your_playlist.xml') # your playlist's xml file
-
-
+    main(r'file/path/here.xml')  # your playlist's xml file
